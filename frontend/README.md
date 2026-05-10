@@ -1,46 +1,61 @@
-# Getting Started with Create React App
+# Smart Surveillance Dashboard
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+This is the frontend dashboard for the Smart Surveillance Platform, built with React, Vite, and Tailwind CSS. It communicates with a FastAPI backend to provide real-time monitoring and security management.
 
-## Available Scripts
+## Setup Instructions
 
-In the project directory, you can run:
+### Environment Configuration
 
-### `npm start`
+Ensure that the `.env` or `.env.example` file is properly configured. You may create a `.env.local` if necessary:
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+```env
+VITE_API_BASE_URL=http://localhost:8000
+```
+*Change `http://localhost:8000` to the actual address of your backend if different.*
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+### Installation
 
-### `npm test`
+Navigate to the project root and install the dependencies:
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+```bash
+npm install
+```
 
-### `npm run build`
+### Running the Development Server
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+To start the Vite development server:
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+```bash
+npm run dev
+```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+*Note: In the AI Studio environment, the server is automatically managed and accessible through the provided preview links.*
 
-### `npm run eject`
+## Authentication Flow
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+1. The app routes users to `/login` if no valid access token is found in `localStorage`.
+2. Login submits `username` and `password` via form-url-encoded data to the `/api/auth/login` backend endpoint.
+3. On success, `access_token` and `refresh_token` are saved in `localStorage`. 
+4. Every protected request includes `Authorization: Bearer <token>`.
+5. If a request returns a 401 Unauthorized status, the app automatically calls `POST /api/auth/refresh` using the refresh token to obtain a new access token, then retries the original request.
+6. If the refresh operation fails, the user is logged out and redirected to `/login`.
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+## Pages Included
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+- **Login**: Secure access portal.
+- **Dashboard**: High-level overview of system status, overall event summaries, and active monitoring processes.
+- **Live Monitoring**: Camera feeds and real-time event logs via WebSocket connection. Includes "Start/Stop" controls.
+- **Events**: Table showing all historical detections and events.
+- **Alerts**: Filtered view only showing unauthorized, unknown, or mismatched events.
+- **Persons**: Management screen for known identities.
+- **Cameras**: Management screen for adding/removing video sources.
+- **Verification**: Dedicated UI for manual cryptographic verification of events, and ad-hoc face recognition.
+- **Reports**: Data visualizations over time (using Recharts).
+- **Settings**: System health check and API configuration.
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+## Troubleshooting
 
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
+- **WebSocket Fails to Connect**: Check if the backend URL is correctly set and that the backend is actually running. The WS connection uses `ws://<domain>/api/monitoring/ws?token=<access_token>`. Ensure your backend handles the token parameter securely.
+- **CORS Issues**: Ensure your FastAPI backend has the `CORSMiddleware` correctly allowing origins (e.g. `['*']` in development, or the specific frontend port).
+- **Icons Not Rendering**: Verify `lucide-react` is correctly installed.
+- **Tailwind Missing Styles**: Validate that `@import "tailwindcss";` exists in `src/index.css`.

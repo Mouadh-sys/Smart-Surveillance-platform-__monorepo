@@ -8,10 +8,11 @@ client = TestClient(app)
 def test_root():
     response = client.get("/")
     assert response.status_code == 200
-    assert response.json() == {"message": "Smart Surveillance Platform API"}
+    assert response.json() == {"message": "Smart Surveillance API is running"}
 
 
-def test_hello():
-    response = client.get("/hello/Alice")
+def test_health():
+    response = client.get("/health")
     assert response.status_code == 200
-    assert response.json() == {"message": "Hello Alice"}
+    assert response.json()["status"] == "ok"
+    assert response.json()["service"] == "Smart Surveillance Platform"

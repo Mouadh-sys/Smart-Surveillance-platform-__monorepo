@@ -109,12 +109,16 @@ def bootstrap_admin(username: str = "mouadh", password: str = "mou@123"):
     db = SessionLocal()
 
     try:
+        # Check password length before anything else
+        logger.info(f"Validating password (length: {len(password)} chars, {len(password.encode('utf-8'))} bytes)...")
         validate_password(password)
+
         existing_admin = db.query(Admin).first()
         if existing_admin:
             logger.info("An admin account already exists")
             return True
 
+        logger.info(f"Creating admin account: {username}")
         admin = Admin(username=username, password_hash=_cli_password_hash(password))
         db.add(admin)
         db.commit()
@@ -125,11 +129,13 @@ def bootstrap_admin(username: str = "mouadh", password: str = "mou@123"):
         logger.info("   - Password: [hidden]")
         return True
     except PasswordTooLongError as e:
-        logger.error(f"❌ {e}")
+        logger.error(f"❌ Password validation error: {e}")
         return False
     except Exception as e:
         db.rollback()
-        logger.error(f"❌ Error creating admin account: {e}")
+        logger.error(f"❌ Error creating admin account: {type(e).__name__}: {e}")
+        import traceback
+        logger.debug(traceback.format_exc())
         return False
     finally:
         db.close()

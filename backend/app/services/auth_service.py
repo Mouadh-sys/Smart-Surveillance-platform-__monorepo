@@ -1,10 +1,26 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+import logging
+import sys
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
 from app.config import settings
+
+# Patch for bcrypt 5.0.0 compatibility with passlib
+# bcrypt 5.0.0 moved __version__ from __about__.__version__ to __version__
+try:
+    import bcrypt as bcrypt_module
+    if not hasattr(bcrypt_module, '__about__') and hasattr(bcrypt_module, '__version__'):
+        # Create a mock __about__ module for compatibility
+        class _About:
+            __version__ = bcrypt_module.__version__
+        bcrypt_module.__about__ = _About()
+except Exception:
+    pass  # If patching fails, passlib will handle the warning
+
+logger = logging.getLogger(__name__)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -26,19 +42,55 @@ class PasswordTooLongError(ValueError):
 
 
 def validate_password(password: str) -> None:
-    if len(password.encode("utf-8")) > BCRYPT_MAX_PASSWORD_BYTES:
+    """Validate password length for bcrypt compatibility.
+
+    Bcrypt has a hard limit of 72 bytes. We validate this before hashing.
+    """
+    if isinstance(password, str):
+        password_bytes = len(password.encode("utf-8"))
+    else:
+        password_bytes = len(password)
+
+    if password_bytes > BCRYPT_MAX_PASSWORD_BYTES:
         raise PasswordTooLongError(
-            f"password cannot be longer than {BCRYPT_MAX_PASSWORD_BYTES} bytes when encoded in UTF-8"
+            f"password cannot be longer than {BCRYPT_MAX_PASSWORD_BYTES} bytes when encoded in UTF-8 "
+            f"(current: {password_bytes} bytes). "
+            f"Please use a shorter password or truncate it: password[:{BCRYPT_MAX_PASSWORD_BYTES}]"
         )
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return pwd_context.verify(plain_password, hashed_password)
+    except ValueError as e:
+        logger.warning(f"Password verification error: {e}")
+        return False
 
 
 def get_password_hash(password: str) -> str:
+    """Hash a password using bcrypt.
+
+    Args:
+        password: The plain text password to hash
+
+    Returns:
+        The hashed password
+
+    Raises:
+        PasswordTooLongError: If password exceeds 72 bytes
+        ValueError: If bcrypt operation fails
+    """
     validate_password(password)
-    return pwd_context.hash(password)
+    try:
+        hashed = pwd_context.hash(password)
+        return hashed
+    except ValueError as e:
+        error_msg = str(e)
+        # Only convert specific bcrypt length errors
+        if "password" in error_msg.lower() and ("72" in error_msg or "length" in error_msg.lower()):
+            raise PasswordTooLongError(f"bcrypt error: {error_msg}")
+        # Re-raise other ValueErrors as-is
+        raise
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:

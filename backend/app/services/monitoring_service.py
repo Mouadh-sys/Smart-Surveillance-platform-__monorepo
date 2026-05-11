@@ -75,9 +75,11 @@ def start_monitoring_camera(camera_id: int) -> Dict:
             }
         else:
             unregister_event_callback(camera_id, _broadcast_event)
+            error_msg = f"Failed to start stream for camera {camera_id} with source '{camera.source}'. Check if the source is valid and accessible."
+            logger.error(error_msg)
             return {
                 "success": False,
-                "error": f"Failed to start monitoring for camera {camera_id}"
+                "error": error_msg
             }
     finally:
         db_session.close()

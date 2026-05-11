@@ -13,6 +13,7 @@ from app.services.auth_service import (
     verify_password,
     decode_token,
     is_token_revoked,
+    PasswordTooLongError,
 )
 
 router = APIRouter(tags=["auth"])
@@ -76,7 +77,15 @@ def bootstrap_admin(payload: AdminCreate, db: Session = Depends(get_db)):
     if existing_admin:
         raise HTTPException(status_code=400, detail="An admin account already exists")
 
-    admin = Admin(username=payload.username, password_hash=get_password_hash(payload.password))
+    try:
+        password_hash = get_password_hash(payload.password)
+    except PasswordTooLongError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Password validation failed: {str(e)}"
+        )
+
+    admin = Admin(username=payload.username, password_hash=password_hash)
     db.add(admin)
     db.commit()
     db.refresh(admin)

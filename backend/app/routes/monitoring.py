@@ -1,7 +1,7 @@
 """
 Monitoring routes - Real-time video stream control and status.
 """
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, WebSocket, WebSocketDisconnect, Query
+from fastapi import APIRouter, HTTPException, Depends, WebSocket, WebSocketDisconnect, Query
 from fastapi.responses import StreamingResponse, HTMLResponse
 from sqlalchemy.orm import Session
 
@@ -83,7 +83,6 @@ async def get_camera_stream_status(camera_id: int, db: Session = Depends(get_db)
 @router.post("/cameras/{camera_id}/start")
 async def start_camera_monitoring(
     camera_id: int,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     _: Admin = Depends(get_current_admin)
 ):

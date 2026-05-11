@@ -61,3 +61,4 @@ def delete_event(event_id: int, db: Session = Depends(get_db), _: Admin = Depend
         raise HTTPException(status_code=404, detail="Event not found")
     db.delete(event)
     db.commit()
+

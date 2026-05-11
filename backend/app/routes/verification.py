@@ -26,6 +26,7 @@ from app.services.watermark_service import (
     build_visible_watermark_text,
     embed_lsb_payload,
     watermark_image,
+    _get_relative_path,
 )
 
 # Keep router without prefix because main.py already mounts it under /api/verification.
@@ -66,7 +67,7 @@ async def recognize_image(file: UploadFile = File(...), db: Session = Depends(ge
             "confidence": 0.0,
             "is_unknown": True,
             "status": "NO_FACE_DETECTED",
-            "original_image_path": str(original_path),
+            "original_image_path": _get_relative_path(original_path),
         }
 
     result = recognize_embedding(embedding)
@@ -101,8 +102,8 @@ async def recognize_image(file: UploadFile = File(...), db: Session = Depends(ge
         person_name=person_name,
         status=status,
         confidence=result.get("confidence"),
-        original_image_path=str(original_path),
-        watermarked_image_path=final_image_path,
+        original_image_path=_get_relative_path(original_path),
+        watermarked_image_path=_get_relative_path(final_image_path),
         visible_watermark_text=visible_text,
         invisible_watermark_payload=invisible_payload_str,
         image_hash=image_hash,
@@ -118,8 +119,8 @@ async def recognize_image(file: UploadFile = File(...), db: Session = Depends(ge
         "access_status": access_status,
         "event_id": event.id,
         "event_code": event.event_code,
-        "original_image_path": str(original_path),
-        "watermarked_image_path": watermarked_path,
+        "original_image_path": _get_relative_path(original_path),
+        "watermarked_image_path": _get_relative_path(watermarked_path),
         "visible_watermark_text": visible_text,
         "invisible_watermark_payload": invisible_payload_str,
         "image_hash": image_hash,

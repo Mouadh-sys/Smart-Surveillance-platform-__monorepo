@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 import logging
+from pathlib import Path
 
 from app.routes import persons, cameras, events, monitoring, verification, auth, reports
 from app.services.monitoring_service import start_all_cameras, stop_all_cameras
@@ -28,6 +30,11 @@ app.include_router(events.router, prefix="/api/events", tags=["Events"])
 app.include_router(monitoring.router, prefix="/api/monitoring", tags=["Monitoring"])
 app.include_router(verification.router, prefix="/api/verification", tags=["Verification"])
 app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
+
+# Serve static files (captured images, watermarked images, etc.)
+data_dir = Path(__file__).resolve().parent.parent / "data"
+if data_dir.exists():
+    app.mount("/data", StaticFiles(directory=str(data_dir)), name="data")
 
 
 @app.on_event("startup")

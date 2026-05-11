@@ -13,6 +13,18 @@ def _ensure_parent(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
 
 
+def _get_relative_path(absolute_path: str | Path) -> str:
+    """Convert an absolute path to a path relative to the data directory."""
+    try:
+        path = Path(absolute_path)
+        data_dir = Path(__file__).resolve().parents[2] / "data"
+        rel_path = path.relative_to(data_dir)
+        return str(rel_path).replace("\\", "/")
+    except (ValueError, TypeError):
+        # If not relative to data dir, return as-is
+        return str(absolute_path).replace("\\", "/")
+
+
 def build_visible_watermark_text(event_code: str, camera_id: str | int | None, status: str) -> str:
     return f"EVENT={event_code} | CAMERA={camera_id or 'N/A'} | STATUS={status}"
 

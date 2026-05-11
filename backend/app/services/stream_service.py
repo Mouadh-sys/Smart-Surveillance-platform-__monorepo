@@ -13,7 +13,7 @@ import uuid
 from app.services.detection_service import detect_faces
 from app.services.embedding_service import extract_embedding_from_frame
 from app.services.recognition_service import recognize_embedding
-from app.services.watermark_service import watermark_image, embed_lsb_payload, build_visible_watermark_text
+from app.services.watermark_service import watermark_image, embed_lsb_payload, build_visible_watermark_text, _get_relative_path
 from app.services.hash_service import sha256_file
 from app.services.event_service import generate_event_code
 from app.database import SessionLocal
@@ -202,8 +202,8 @@ class StreamProcessor:
                     person_name=person_name,
                     status=classification_status,
                     confidence=float(confidence),
-                    original_image_path=str(original_path),
-                    watermarked_image_path=final_image_path,
+                    original_image_path=_get_relative_path(str(original_path)),
+                    watermarked_image_path=_get_relative_path(final_image_path),
                     visible_watermark_text=visible_text,
                     invisible_watermark_payload=str(invisible_watermark_payload),
                     image_hash=image_hash,
@@ -219,7 +219,7 @@ class StreamProcessor:
                     "person_name": person_name,
                     "status": classification_status,
                     "confidence": float(confidence),
-                    "image_path": final_image_path,
+                    "image_path": _get_relative_path(final_image_path),
                     "timestamp": timestamp
                 }
 

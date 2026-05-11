@@ -222,11 +222,11 @@ export default function Verification() {
              {recognizeResult ? (
                 <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 flex-1">
                    <div className="bg-black border border-neutral-800 p-3 rounded flex items-start gap-4">
-                      {recognizeResult.watermarked_image_path ? (
-                         <img src={`${API_BASE_URL}/${recognizeResult.watermarked_image_path}`} alt="Analysis" className="w-20 h-20 object-cover rounded border border-neutral-800" />
-                      ) : (
-                         <div className="w-20 h-20 bg-neutral-900 rounded border border-neutral-800 flex items-center justify-center text-neutral-600 text-[9px] font-bold uppercase tracking-widest">No Image</div>
-                      )}
+                       {recognizeResult.watermarked_image_path ? (
+                          <img src={`${API_BASE_URL}/data/${recognizeResult.watermarked_image_path}`} alt="Analysis" className="w-20 h-20 object-cover rounded border border-neutral-800" />
+                       ) : (
+                          <div className="w-20 h-20 bg-neutral-900 rounded border border-neutral-800 flex items-center justify-center text-neutral-600 text-[9px] font-bold uppercase tracking-widest">No Image</div>
+                       )}
                       
                       <div className="flex-1 space-y-2">
                          <div className="flex justify-between items-start">

@@ -78,7 +78,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({ event, onC
                   <div className="bg-black border border-neutral-800 rounded overflow-hidden flex items-center justify-center p-2 relative group">
                      <div className="absolute inset-0 border border-indigo-500/20 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity"></div>
                      <img 
-                       src={event.watermarked_image_path.startsWith('http') ? event.watermarked_image_path : `${API_BASE_URL}/${event.watermarked_image_path}`} 
+                           src={event.watermarked_image_path.startsWith('http') ? event.watermarked_image_path : `${API_BASE_URL}/data/${event.watermarked_image_path}`}
                        alt="Watermarked Event" 
                        className="max-w-full max-h-64 object-contain rounded brightness-90 contrast-125"
                      />

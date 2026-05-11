@@ -8,12 +8,38 @@ import { LoadingSpinner } from '../components/LoadingSpinner';
 import { formatDate } from '../utils/formatDate';
 import { API_BASE_URL } from '../utils/constants';
 
+const normalizeMonitoringEvent = (rawEvent: any) => {
+  if (!rawEvent) return null;
+
+  // The backend sends monitoring events as { type: 'monitoring_event', data: {...} }
+  // while control messages like { type: 'connected' } and { type: 'pong' } should
+  // not be shown in the activity log.
+  const payload = rawEvent.type === 'monitoring_event' && rawEvent.data ? rawEvent.data : rawEvent;
+
+  if (rawEvent.type && rawEvent.type !== 'monitoring_event') {
+    return null;
+  }
+
+  const confidenceValue = Number(payload.confidence);
+  const safeConfidence = Number.isFinite(confidenceValue) ? confidenceValue : 0;
+
+  return {
+    id: payload.event_code || payload.id || `${payload.camera_id ?? 'camera'}-${payload.timestamp ?? Date.now()}`,
+    person_name: payload.person_name || 'UNKNOWN_SUBJECT',
+    camera_id: payload.camera_id ?? 'N/A',
+    confidence: safeConfidence,
+    status: payload.status || 'UNKNOWN',
+    timestamp: payload.timestamp || payload.created_at || new Date().toISOString(),
+  };
+};
+
 export default function LiveMonitoring() {
   const [cameras, setCameras] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { events, isConnected } = useWebSocket();
   const { accessToken } = useAuth();
+  const activityEvents = events.map(normalizeMonitoringEvent).filter(Boolean);
 
   const fetchCameras = async () => {
     try {
@@ -120,17 +146,17 @@ export default function LiveMonitoring() {
              <span className="text-[10px] font-mono text-neutral-600">WS_CONN</span>
            </div>
            <div className="flex-1 overflow-y-auto space-y-px bg-black">
-             {events.length === 0 ? (
+             {activityEvents.length === 0 ? (
                <div className="flex items-center justify-center h-full text-neutral-600 text-[10px] font-bold uppercase tracking-widest text-center px-4">
                  Awaiting telemetry data...
                </div>
              ) : (
                <div className="space-y-px">
-                 {events.map((ev, index) => (
-                   <div key={index} className="p-3 bg-[#0a0a0c] hover:bg-neutral-800/50 flex flex-col gap-1 border-b border-neutral-800 transition-colors">
+                 {activityEvents.map((ev: any) => (
+                   <div key={ev.id} className="p-3 bg-[#0a0a0c] hover:bg-neutral-800/50 flex flex-col gap-1 border-b border-neutral-800 transition-colors">
                      <div className="flex justify-between items-center">
                        <p className="text-[10px] font-mono text-white truncate max-w-[120px]">{ev.person_name || 'UNKNOWN_SUBJECT'}</p>
-                       <span className="text-[10px] text-neutral-600">{formatDate(new Date())}</span>
+                       <span className="text-[10px] text-neutral-600">{formatDate(ev.timestamp)}</span>
                      </div>
                      <div className="flex justify-between items-center">
                         <span className="text-xs text-neutral-500 truncate">Cam: {ev.camera_id} • Conf: {(ev.confidence * 100).toFixed(0)}%</span>

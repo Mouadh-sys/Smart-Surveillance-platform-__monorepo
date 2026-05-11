@@ -51,33 +51,46 @@ export default function Persons() {
     setModalOpen(true);
   };
 
-  const handleCreatePerson = async (personData: any) => {
+  const handleCreatePerson = async (personData: any, photoFile?: File | null) => {
     try {
-      await personsApi.createPerson(personData);
+      const createdPerson = await personsApi.createPerson(personData);
+      let uploadError: unknown = null;
+      try {
+        if (photoFile && createdPerson?.id) {
+          await personsApi.uploadPersonImages(createdPerson.id, [photoFile]);
+        }
+      } catch (uploadErr) {
+        uploadError = uploadErr;
+      }
       setError('');
       await fetchPersons();
+      if (uploadError) {
+        return Promise.reject(uploadError instanceof Error ? uploadError : new Error('Failed to upload person photo'));
+      }
+      return createdPerson;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create person');
       throw err;
     }
   };
 
-  const handleUpdatePerson = async (personData: any) => {
+  const handleUpdatePerson = async (personData: any, _photoFile?: File | null) => {
     try {
-      await personsApi.updatePerson(editingPerson.id, personData);
+      const updatedPerson = await personsApi.updatePerson(editingPerson.id, personData);
       setError('');
       await fetchPersons();
+      return updatedPerson;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update person');
       throw err;
     }
   };
 
-  const handleModalSubmit = async (personData: any) => {
+  const handleModalSubmit = async (personData: any, photoFile?: File | null) => {
     if (editingPerson) {
-      await handleUpdatePerson(personData);
+      return await handleUpdatePerson(personData, photoFile);
     } else {
-      await handleCreatePerson(personData);
+      return await handleCreatePerson(personData, photoFile);
     }
   };
 

@@ -13,7 +13,7 @@ interface Person {
 interface PersonModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (person: Person) => Promise<void>;
+  onSubmit: (person: Person, photoFile?: File | null) => Promise<Person>;
   initialData?: Person;
   title?: string;
 }
@@ -31,6 +31,7 @@ export function PersonModal({
     access_status: 'AUTHORIZED',
     image_folder: ''
   });
+  const [newPersonPhoto, setNewPersonPhoto] = useState<File | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -49,6 +50,7 @@ export function PersonModal({
         image_folder: ''
       });
     }
+    setNewPersonPhoto(null);
     setSelectedFiles([]);
     setError('');
     setUploadError('');
@@ -70,6 +72,12 @@ export function PersonModal({
       setUploadError('');
       setUploadSuccess('');
     }
+  };
+
+  const handleNewPersonPhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    setNewPersonPhoto(file);
+    setError('');
   };
 
   const handleUploadImages = async () => {
@@ -114,7 +122,7 @@ export function PersonModal({
         return;
       }
 
-      await onSubmit(formData);
+      await onSubmit(formData, !initialData?.id ? newPersonPhoto : null);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save person');
@@ -193,24 +201,28 @@ export function PersonModal({
             </select>
           </div>
 
-          {/* Image Folder */}
-          <div>
-            <label className="block text-xs font-bold text-neutral-400 uppercase tracking-widest mb-1.5">
-              Image Folder Path
-            </label>
-            <input
-              type="text"
-              name="image_folder"
-              value={formData.image_folder}
-              onChange={handleChange}
-              className="w-full bg-black border border-neutral-800 rounded px-3 py-2 text-xs text-white placeholder-neutral-600 focus:outline-none focus:border-indigo-500 transition-colors"
-              placeholder="e.g., /path/to/faces"
-              disabled
-            />
-            <p className="text-[9px] text-neutral-500 mt-1">
-              Auto-managed after person creation
-            </p>
-          </div>
+          {/* New person photo upload */}
+          {!initialData?.id && (
+            <div>
+              <label className="block text-xs font-bold text-neutral-400 uppercase tracking-widest mb-1.5">
+                Photo
+              </label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleNewPersonPhotoChange}
+                className="block w-full text-[10px] font-mono text-neutral-400 file:mr-3 file:py-1 file:px-2 file:rounded file:border-0 file:text-[9px] file:font-bold file:uppercase file:tracking-widest file:bg-neutral-800 file:text-neutral-300 hover:file:bg-neutral-700 transition-colors focus:outline-none"
+              />
+              <p className="text-[9px] text-neutral-500 mt-1">
+                Upload a face photo now or add training images later from the edit screen.
+              </p>
+              {newPersonPhoto && (
+                <p className="text-[9px] text-neutral-400 mt-1 truncate">
+                  Selected: {newPersonPhoto.name}
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Buttons */}
           <div className="flex gap-3 pt-4 border-t border-neutral-800">
@@ -223,10 +235,10 @@ export function PersonModal({
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || uploading}
               className="flex-1 px-3 py-2 bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-500/50 text-white text-xs font-bold uppercase tracking-widest rounded transition-colors"
             >
-              {loading ? 'Saving...' : 'Save'}
+              {loading || uploading ? 'Saving...' : 'Save'}
             </button>
           </div>
         </form>

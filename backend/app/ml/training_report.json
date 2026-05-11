@@ -2,9 +2,10 @@
   "dataset_dir": "D:\\projects\\smart-surveillance-platform\\backend\\data\\known_faces",
   "model_dir": "D:\\projects\\smart-surveillance-platform\\backend\\app\\ml",
   "classes": [
+    "Hama Guizeni",
     "Mouadh Boukari",
     "Yassine Ajbouni"
   ],
-  "num_embeddings": 10,
+  "num_embeddings": 12,
   "skipped": []
 }

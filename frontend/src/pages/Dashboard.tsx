@@ -81,24 +81,24 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard 
           title="Total Events" 
-          value={summary?.total_events || 0} 
+          value={summary?.summary?.total_events || 0} 
           icon={Camera}
         />
         <StatCard 
           title="Authorized" 
-          value={summary?.authorized_events || 0} 
+          value={summary?.summary?.authorized_events || 0} 
           icon={CheckCircle}
           colorClass="text-emerald-500"
         />
         <StatCard 
           title="Unknown" 
-          value={summary?.unknown_events || 0} 
+          value={summary?.summary?.unknown_events || 0} 
           icon={ShieldAlert}
           colorClass="text-rose-500"
         />
         <StatCard 
           title="Non-Auth" 
-          value={summary?.unauthorized_events || 0} 
+          value={summary?.summary?.known_non_authorized_events || 0} 
           icon={AlertTriangle}
           colorClass="text-amber-500"
         />
@@ -133,9 +133,9 @@ export default function Dashboard() {
             <h2 className="text-[10px] uppercase tracking-widest font-bold text-neutral-400">Recent Telemetry</h2>
           </div>
           <div className="flex-1 overflow-y-auto">
-             {summary?.recent_events?.length > 0 ? (
+             {summary?.events?.length > 0 ? (
                 <div className="space-y-px">
-                  {summary.recent_events.map((event: any, i: number) => (
+                  {summary.events.slice(0, 10).map((event: any, i: number) => (
                      <div key={i} className="p-3 bg-[#0a0a0c] border-b border-neutral-800 hover:bg-neutral-800/50 transition-colors">
                         <div className="flex justify-between items-center mb-1">
                            <p className="text-[10px] font-mono text-white">{event.person_name || 'UNKNOWN_SUBJECT'}</p>

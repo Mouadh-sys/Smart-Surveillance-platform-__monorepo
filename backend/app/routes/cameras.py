@@ -6,7 +6,7 @@ from app.models.camera_model import Camera
 from app.schemas.camera_schema import CameraCreate, CameraRead
 from app.models.admin_model import Admin
 
-router = APIRouter(prefix="/cameras", tags=["cameras"])
+router = APIRouter(tags=["cameras"])
 
 
 @router.get("/", response_model=list[CameraRead])

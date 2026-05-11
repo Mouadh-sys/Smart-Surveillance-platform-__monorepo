@@ -1,7 +1,8 @@
 """
 Monitoring routes - Real-time video stream control and status.
 """
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, WebSocket, WebSocketDisconnect, Query
+from fastapi.responses import StreamingResponse, HTMLResponse
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_db, get_current_admin
@@ -15,10 +16,17 @@ from app.services.monitoring_service import (
     get_camera_status,
     get_all_cameras_status
 )
+from app.services.stream_service import get_latest_frame
 from app.models.camera_model import Camera
 from app.services.websocket_service import manager
+from app.services.auth_service import decode_token
+import logging
+import cv2
+import asyncio
 
-router = APIRouter(prefix="/monitoring", tags=["monitoring"])
+logger = logging.getLogger(__name__)
+
+router = APIRouter(tags=["monitoring"])
 
 
 @router.get("/status")
@@ -121,19 +129,127 @@ async def stop_all_monitoring(_: Admin = Depends(get_current_admin)):
     return result
 
 
+@router.get("/stream/{camera_id}")
+async def stream_camera(camera_id: int, token: str = Query(None), db: Session = Depends(get_db)):
+    """Stream MJPEG video feed for a camera.
+
+    Reads frames from the already-running StreamProcessor instead of opening
+    a second VideoCapture (which would fail on Windows for webcams).
+    Accepts token as query parameter to support img tags which can't send headers.
+    """
+    # Authenticate with token if provided, otherwise require auth header
+    if token:
+        try:
+            token_data = decode_token(token)
+            if not token_data.get("sub"):
+                raise HTTPException(status_code=401, detail="Invalid token")
+        except Exception as e:
+            logger.error(f"Token validation failed: {e}")
+            raise HTTPException(status_code=401, detail="Invalid token")
+    else:
+        raise HTTPException(status_code=401, detail="No token provided")
+
+    camera = db.query(Camera).filter(Camera.id == camera_id).first()
+    if not camera:
+        raise HTTPException(status_code=404, detail="Camera not found")
+
+    if not camera.is_active:
+        raise HTTPException(status_code=400, detail="Camera is not active")
+
+    # Check if stream is already running
+    stream_status = get_camera_status(camera_id)
+    if not stream_status or not stream_status.get("is_running"):
+        raise HTTPException(status_code=400, detail="Camera stream not running - start monitoring first")
+
+    async def video_generator():
+        """Generate MJPEG frames from the running StreamProcessor."""
+        try:
+            while True:
+                frame_bytes = get_latest_frame(camera_id)
+                if frame_bytes is None:
+                    # Stream may have stopped or no frame yet
+                    await asyncio.sleep(0.1)
+                    # Check if stream is still running
+                    status = get_camera_status(camera_id)
+                    if not status or not status.get("is_running"):
+                        logger.info(f"Stream stopped for camera {camera_id}, ending MJPEG")
+                        return
+                    continue
+
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n'
+                       b'Content-length: ' + str(len(frame_bytes)).encode() + b'\r\n\r\n'
+                       + frame_bytes + b'\r\n')
+
+                await asyncio.sleep(0.033)  # ~30 FPS
+
+        except Exception as e:
+            logger.error(f"Stream error for camera {camera_id}: {e}")
+
+    return StreamingResponse(video_generator(), media_type="multipart/x-mixed-replace; boundary=frame")
+
+
+
 @router.websocket("/ws")
-async def websocket_monitoring(websocket: WebSocket):
-    await manager.connect(websocket)
+async def websocket_monitoring(websocket: WebSocket, token: str = Query(None)):
+    """WebSocket endpoint for monitoring events.
+
+    Added defensive logging around the accept/receive loop so handshake failures
+    are visible in the backend logs (helps diagnose "closed before established").
+
+    Accepts token as query parameter for authentication.
+    """
+    # Authenticate with token if provided
+    if token:
+        try:
+            token_data = decode_token(token)
+            if not token_data.get("sub"):
+                logger.error("Invalid token - no 'sub' claim")
+                await websocket.close(code=1008, reason="Invalid token")
+                return
+        except Exception as e:
+            logger.error(f"WebSocket token validation failed: {e}")
+            await websocket.close(code=1008, reason="Invalid token")
+            return
+    else:
+        logger.error("WebSocket connection attempted without token")
+        await websocket.close(code=1008, reason="Token required")
+        return
+    try:
+        await manager.connect(websocket)
+    except Exception as exc:
+        # If accept fails (bad handshake / proxy / early disconnect), log and close.
+        logger.exception("WebSocket accept failed: %s", exc)
+        try:
+            await websocket.close(code=1011)
+        except Exception:
+            pass
+        return
+
     try:
         await manager.send_personal_message({"type": "connected", "message": "Monitoring WebSocket connected"}, websocket)
         while True:
             try:
                 message = await websocket.receive_text()
             except WebSocketDisconnect:
+                logger.info("WebSocket client disconnected")
                 break
+            except Exception as exc:
+                # Unexpected errors while receiving - log and break to disconnect cleanly
+                logger.exception("Error receiving from WebSocket: %s", exc)
+                break
+
             if message == "ping":
-                await manager.send_personal_message({"type": "pong"}, websocket)
+                try:
+                    await manager.send_personal_message({"type": "pong"}, websocket)
+                except Exception:
+                    logger.exception("Failed to send pong to websocket")
             else:
-                await manager.send_personal_message({"type": "echo", "message": message}, websocket)
+                try:
+                    await manager.send_personal_message({"type": "echo", "message": message}, websocket)
+                except Exception:
+                    logger.exception("Failed to send echo to websocket")
     finally:
         manager.disconnect(websocket)
+
+

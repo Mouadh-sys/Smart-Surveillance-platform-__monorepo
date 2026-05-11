@@ -1,4 +1,5 @@
 import axiosClient from './axiosClient';
+import { API_BASE_URL } from '../utils/constants';
 
 export const monitoringApi = {
   getStatus: async () => {
@@ -28,5 +29,9 @@ export const monitoringApi = {
   stopAll: async () => {
     const { data } = await axiosClient.post('/api/monitoring/stop-all');
     return data;
+  },
+  getStreamUrl: (cameraId: number | string) => {
+    // Returns the MJPEG stream URL - no auth needed as token is in header
+    return `${API_BASE_URL}/api/monitoring/stream/${cameraId}`;
   },
 };

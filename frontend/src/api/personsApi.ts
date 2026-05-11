@@ -21,4 +21,18 @@ export const personsApi = {
     const { data } = await axiosClient.delete(`/api/persons/${id}`);
     return data;
   },
+  uploadPersonImages: async (personId: number | string, files: File[]) => {
+    const formData = new FormData();
+    files.forEach(file => {
+      formData.append('files', file);
+    });
+    const { data } = await axiosClient.post(`/api/persons/${personId}/images`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return data;
+  },
 };
+
+

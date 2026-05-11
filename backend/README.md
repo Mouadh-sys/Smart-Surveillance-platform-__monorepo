@@ -383,9 +383,9 @@ python scripts/db_manager.py reset
 
 ## 📚 Documentation
 
-- **[FINAL_STATUS.md](./FINAL_STATUS.md)** - Complete implementation status
-- **[EXECUTIVE_SUMMARY.md](./EXECUTIVE_SUMMARY.md)** - High-level overview
-- **[README_IMPLEMENTATION.md](./README_IMPLEMENTATION.md)** - Implementation details
+- **[FINAL_STATUS.md](../docs/FINAL_STATUS.mdTUS.md)** - Complete implementation status
+- **[EXECUTIVE_SUMMARY.md](../docs/EXECUTIVE_SUMMARY.mdARY.md)** - High-level overview
+- **[README_IMPLEMENTATION.md](../docs/README_IMPLEMENTATION.mdION.md)** - Implementation details
 
 ## 📝 License
 

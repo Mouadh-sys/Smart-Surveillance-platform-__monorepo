@@ -11,14 +11,35 @@ export default function Events() {
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState({
+    status: '',
+    camera_id: '',
+    search: ''
+  });
   const navigate = useNavigate();
 
-  const fetchEvents = async () => {
+  const fetchEvents = async (filterParams?: any) => {
     try {
       setLoading(true);
-      const data = await eventsApi.getEvents();
-      // Assume data is an array or { items: [] } depending on FastAPI integration
-      setEvents(Array.isArray(data) ? data : data.items || []);
+      const params = filterParams || {
+        ...(filters.status && { status: filters.status }),
+        ...(filters.camera_id && { camera_id: filters.camera_id })
+      };
+      const data = await eventsApi.getEvents(params);
+      const eventList = Array.isArray(data) ? data : data.items || [];
+
+      // Client-side search filter
+      const filtered = eventList.filter((event: any) => {
+        if (!filters.search) return true;
+        const searchLower = filters.search.toLowerCase();
+        return (
+          event.person_name?.toLowerCase().includes(searchLower) ||
+          event.event_code?.toLowerCase().includes(searchLower)
+        );
+      });
+
+      setEvents(filtered);
     } catch (error) {
       console.error('Failed to fetch events', error);
     } finally {
@@ -32,6 +53,26 @@ export default function Events() {
 
   const handleVerify = (code: string) => {
     navigate(`/verification?code=${code}`);
+  };
+
+  const handleFilterChange = (field: string, value: string) => {
+    setFilters(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleApplyFilters = () => {
+    fetchEvents();
+  };
+
+  const handleResetFilters = () => {
+    setFilters({
+      status: '',
+      camera_id: '',
+      search: ''
+    });
+    setShowFilters(false);
   };
 
   if (loading && events.length === 0) return <LoadingSpinner />;
@@ -52,20 +93,79 @@ export default function Events() {
       </div>
 
       <div className="bg-neutral-900 border border-neutral-800 rounded-lg overflow-hidden flex flex-col">
-         <div className="p-3 border-b border-neutral-800 bg-neutral-800/30 flex flex-col sm:flex-row gap-4 justify-between">
-           <div className="flex gap-4">
-             <div className="relative">
-               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-neutral-500 w-4 h-4" />
-               <input 
-                 type="text" 
-                 placeholder="Search events..." 
-                 className="bg-black border border-neutral-800 rounded pl-9 pr-4 py-1.5 text-sm text-white focus:ring-1 focus:ring-indigo-500 w-full sm:w-64 font-mono transition-colors focus:outline-none"
-               />
-             </div>
-             <button className="flex items-center gap-2 bg-black border border-neutral-800 px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-widest text-neutral-400 hover:text-white transition-colors">
-               <Filter className="w-3 h-3" /> Filters
-             </button>
-           </div>
+         <div className="p-3 border-b border-neutral-800 bg-neutral-800/30 flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row gap-4 justify-between">
+              <div className="flex gap-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-neutral-500 w-4 h-4" />
+                  <input
+                    type="text"
+                    placeholder="Search events..."
+                    value={filters.search}
+                    onChange={(e) => {
+                      handleFilterChange('search', e.target.value);
+                      setLoading(true);
+                      setTimeout(() => fetchEvents(), 300);
+                    }}
+                    className="bg-black border border-neutral-800 rounded pl-9 pr-4 py-1.5 text-sm text-white focus:ring-1 focus:ring-indigo-500 w-full sm:w-64 font-mono transition-colors focus:outline-none"
+                  />
+                </div>
+                <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-widest transition-colors ${
+                    showFilters 
+                      ? 'bg-indigo-500/20 border border-indigo-500/20 text-indigo-400' 
+                      : 'bg-black border border-neutral-800 text-neutral-400 hover:text-white'
+                  }`}
+                >
+                  <Filter className="w-3 h-3" /> Filters
+                </button>
+              </div>
+            </div>
+
+            {showFilters && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-black/50 rounded border border-neutral-800/50">
+                <div>
+                  <label className="block text-[9px] font-bold text-neutral-500 uppercase tracking-widest mb-1.5">Status</label>
+                  <select
+                    value={filters.status}
+                    onChange={(e) => handleFilterChange('status', e.target.value)}
+                    className="w-full bg-black border border-neutral-800 rounded px-2 py-1.5 text-[10px] text-white focus:outline-none focus:border-indigo-500 transition-colors"
+                  >
+                    <option value="">All Statuses</option>
+                    <option value="AUTHORIZED">Authorized</option>
+                    <option value="KNOWN_NON_AUTHORIZED">Known Non-Auth</option>
+                    <option value="UNKNOWN">Unknown</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[9px] font-bold text-neutral-500 uppercase tracking-widest mb-1.5">Camera ID</label>
+                  <input
+                    type="number"
+                    value={filters.camera_id}
+                    onChange={(e) => handleFilterChange('camera_id', e.target.value)}
+                    className="w-full bg-black border border-neutral-800 rounded px-2 py-1.5 text-[10px] text-white placeholder-neutral-600 focus:outline-none focus:border-indigo-500 transition-colors"
+                    placeholder="Enter camera ID"
+                  />
+                </div>
+
+                <div className="flex gap-2 items-end">
+                  <button
+                    onClick={handleApplyFilters}
+                    className="flex-1 px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white text-[10px] font-bold uppercase tracking-widest rounded transition-colors"
+                  >
+                    Apply
+                  </button>
+                  <button
+                    onClick={handleResetFilters}
+                    className="flex-1 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-white text-[10px] font-bold uppercase tracking-widest rounded transition-colors"
+                  >
+                    Reset
+                  </button>
+                </div>
+              </div>
+            )}
          </div>
          
          <div className="overflow-x-auto">

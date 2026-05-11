@@ -8,9 +8,9 @@ from sqlalchemy.orm import Session
 from app.dependencies import get_db, get_current_admin
 from app.models.admin_model import Admin
 from app.schemas.report_schema import ReportFilter
-from app.services.report_service import build_report
+from app.services.report_service import build_report, build_daily_report
 
-router = APIRouter(prefix="/reports", tags=["reports"])
+router = APIRouter(tags=["reports"])
 
 
 @router.get("/summary")
@@ -39,7 +39,7 @@ def get_daily_report(
     db: Session = Depends(get_db),
     _: Admin = Depends(get_current_admin),
 ):
-    return build_report(db, start_date=start_date, end_date=end_date)
+    return build_daily_report(db, start_date=start_date, end_date=end_date)
 
 
 @router.get("/by-camera/{camera_id}")

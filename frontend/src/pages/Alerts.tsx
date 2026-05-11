@@ -1,12 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { ShieldAlert, Search } from 'lucide-react';
+import { ShieldAlert } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { eventsApi } from '../api/eventsApi';
 import { StatusBadge } from '../components/StatusBadge';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { EventDetailsModal } from '../components/EventDetailsModal';
 import { formatDate } from '../utils/formatDate';
-import { isAlertStatus } from '../utils/statusUtils';
 
 export default function Alerts() {
   const [alerts, setAlerts] = useState<any[]>([]);
@@ -17,10 +16,18 @@ export default function Alerts() {
   const fetchAlerts = async () => {
     try {
       setLoading(true);
-      const data = await eventsApi.getEvents();
-      const allEvents = Array.isArray(data) ? data : data.items || [];
-      const alertEvents = allEvents.filter(ev => isAlertStatus(ev.status));
-      setAlerts(alertEvents);
+      // Use backend filtering for better performance
+      const unknownAlerts = await eventsApi.getEventsByStatus('UNKNOWN');
+      const nonAuthAlerts = await eventsApi.getEventsByStatus('KNOWN_NON_AUTHORIZED');
+
+      const unknownList = Array.isArray(unknownAlerts) ? unknownAlerts : unknownAlerts.items || [];
+      const nonAuthList = Array.isArray(nonAuthAlerts) ? nonAuthAlerts : nonAuthAlerts.items || [];
+
+      const allAlerts = [...unknownList, ...nonAuthList];
+      // Sort by date descending
+      allAlerts.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      setAlerts(allAlerts);
     } catch (error) {
       console.error('Failed to fetch alerts', error);
     } finally {

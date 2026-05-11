@@ -47,9 +47,9 @@ export default function Reports() {
   if (loading && !summary) return <LoadingSpinner />;
 
   const pieData = [
-    { name: 'Authorized', value: summary?.authorized_events || 0, color: COLORS.AUTHORIZED },
-    { name: 'Unknown', value: summary?.unknown_events || 0, color: COLORS.UNKNOWN },
-    { name: 'Non-Authorized', value: summary?.unauthorized_events || 0, color: COLORS.NON_AUTHORIZED },
+    { name: 'Authorized', value: summary?.summary?.authorized_events || 0, color: COLORS.AUTHORIZED },
+    { name: 'Unknown', value: summary?.summary?.unknown_events || 0, color: COLORS.UNKNOWN },
+    { name: 'Non-Authorized', value: summary?.summary?.known_non_authorized_events || 0, color: COLORS.NON_AUTHORIZED },
   ].filter(d => d.value > 0);
 
   return (

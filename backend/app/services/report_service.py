@@ -84,3 +84,36 @@ def build_report(db: Session, start_date: datetime | None = None, end_date: date
             for event in events
         ],
     }
+
+
+def build_daily_report(
+    db: Session,
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
+) -> list[dict[str, Any]]:
+    """Return per-day event counts for the trend chart."""
+    from collections import defaultdict
+
+    query = db.query(Event)
+    query = _apply_filters(query, start_date=start_date, end_date=end_date)
+    events = query.order_by(Event.created_at.asc()).all()
+
+    daily: dict[str, dict[str, int]] = defaultdict(
+        lambda: {"total_events": 0, "authorized_events": 0, "unauthorized_events": 0, "unknown_events": 0}
+    )
+
+    for event in events:
+        date_key = event.created_at.strftime("%Y-%m-%d") if event.created_at else "unknown"
+        daily[date_key]["total_events"] += 1
+        if event.status == "AUTHORIZED":
+            daily[date_key]["authorized_events"] += 1
+        elif event.status == "KNOWN_NON_AUTHORIZED":
+            daily[date_key]["unauthorized_events"] += 1
+        elif event.status == "UNKNOWN":
+            daily[date_key]["unknown_events"] += 1
+
+    return [
+        {"date": date, **counts}
+        for date, counts in sorted(daily.items())
+    ]
+

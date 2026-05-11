@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Upload, Fingerprint, ShieldCheck, FileCheck, CheckCircle, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { Upload, Fingerprint, ShieldCheck, FileCheck } from 'lucide-react';
 import { verificationApi } from '../api/verificationApi';
 import { StatusBadge } from '../components/StatusBadge';
 import { API_BASE_URL } from '../utils/constants';
@@ -18,20 +18,33 @@ export default function Verification() {
   const [recognizing, setRecognizing] = useState(false);
   const [recognizeError, setRecognizeError] = useState('');
 
-  const [modelStatus, setModelStatus] = useState<any>(null);
+   const [modelStatus, setModelStatus] = useState<any>(null);
+   const [reloading, setReloading] = useState(false);
 
-  useEffect(() => {
-    fetchModelStatus();
-  }, []);
+   useEffect(() => {
+     fetchModelStatus();
+   }, []);
 
-  const fetchModelStatus = async () => {
-    try {
-      const data = await verificationApi.getModelStatus();
-      setModelStatus(data);
-    } catch (e) {
-      console.error(e);
-    }
-  };
+   const fetchModelStatus = async () => {
+     try {
+       const data = await verificationApi.getModelStatus();
+       setModelStatus(data);
+     } catch (e) {
+       console.error(e);
+     }
+   };
+
+   const handleReloadModel = async () => {
+     setReloading(true);
+     try {
+       const data = await verificationApi.reloadModel();
+       setModelStatus(data);
+     } catch (e) {
+       console.error('Failed to reload model', e);
+     } finally {
+       setReloading(false);
+     }
+   };
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,12 +89,21 @@ export default function Verification() {
           </h1>
           <p className="text-[10px] text-neutral-500 uppercase tracking-widest mt-1">Verify image cryptographics and perform ad-hoc face recognition.</p>
         </div>
-        <div className="bg-black border border-neutral-800 px-3 py-1.5 rounded flex items-center gap-2">
-           <span className="text-[9px] font-bold uppercase tracking-widest text-neutral-500">Classifier:</span>
-           <span className={`flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest ${modelStatus?.status === 'loaded' ? 'text-emerald-500' : 'text-rose-500'}`}>
-              <div className={`w-1.5 h-1.5 rounded-full ${modelStatus?.status === 'loaded' ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></div>
-              {modelStatus?.status || 'UNKNOWN_STATE'}
-           </span>
+        <div className="bg-black border border-neutral-800 px-3 py-1.5 rounded flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] font-bold uppercase tracking-widest text-neutral-500">Classifier:</span>
+            <span className={`flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest ${modelStatus?.loaded ? 'text-emerald-500' : 'text-rose-500'}`}>
+              <div className={`w-1.5 h-1.5 rounded-full ${modelStatus?.loaded ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></div>
+              {modelStatus?.loaded ? 'LOADED' : 'UNLOADED'}
+            </span>
+          </div>
+          <button
+            onClick={handleReloadModel}
+            disabled={reloading}
+            className="px-2 py-1 text-[9px] font-bold uppercase tracking-widest text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 hover:bg-indigo-500/20 rounded transition-colors disabled:opacity-50"
+          >
+            {reloading ? 'Reloading...' : 'Reload'}
+          </button>
         </div>
       </div>
 
@@ -119,33 +141,41 @@ export default function Verification() {
                 <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 flex-1">
                    <div className="flex justify-between items-center bg-black border border-neutral-800 p-3 rounded">
                       <span className="text-[9px] font-bold uppercase tracking-widest text-neutral-500">Authenticity Engine</span>
-                      <StatusBadge status={verifyResult.authenticity_status || verifyResult.verification_status} />
+                      <StatusBadge status={verifyResult.is_authentic ? 'VERIFIED_AUTHENTIC' : 'VERIFIED_TAMPERED'} />
                    </div>
 
                    <div className="bg-black border border-neutral-800 p-3 rounded space-y-2">
                       <div className="flex justify-between items-center text-[10px] font-mono uppercase">
-                         <span className="text-neutral-500">Database Match</span>
-                         <span className={verifyResult.is_database_match ? 'text-emerald-400' : 'text-rose-400'}>
-                            {verifyResult.is_database_match ? 'LOCATED' : 'NOT_FOUND'}
+                         <span className="text-neutral-500">Hash Integrity</span>
+                         <span className={verifyResult.checks?.hash_integrity?.passed ? 'text-emerald-400' : 'text-rose-400'}>
+                            {verifyResult.checks?.hash_integrity?.passed ? 'VALIDATED' : 'MISMATCH_DETECTED'}
                          </span>
                       </div>
                       <div className="flex justify-between items-center text-[10px] font-mono uppercase border-t border-neutral-800/50 pt-2">
-                         <span className="text-neutral-500">Hash Match</span>
-                         <span className={verifyResult.is_hash_match ? 'text-emerald-400' : 'text-rose-400'}>
-                            {verifyResult.is_hash_match ? 'VALIDATED' : 'MISMATCH_DETECTED'}
+                         <span className="text-neutral-500">Visible Watermark</span>
+                         <span className={verifyResult.checks?.visible_watermark?.passed ? 'text-emerald-400' : 'text-rose-400'}>
+                            {verifyResult.checks?.visible_watermark?.passed ? 'POSITIVE' : 'NEGATIVE'}
                          </span>
                       </div>
                       <div className="flex justify-between items-center text-[10px] font-mono uppercase border-t border-neutral-800/50 pt-2">
-                         <span className="text-neutral-500">Watermark Detected</span>
-                         <span className={verifyResult.watermark_found ? 'text-emerald-400' : 'text-rose-400'}>
-                            {verifyResult.watermark_found ? 'POSITIVE' : 'NEGATIVE'}
+                         <span className="text-neutral-500">Invisible Watermark</span>
+                         <span className={verifyResult.checks?.invisible_watermark?.passed ? 'text-emerald-400' : 'text-rose-400'}>
+                            {verifyResult.checks?.invisible_watermark?.passed ? 'POSITIVE' : 'NEGATIVE'}
                          </span>
                       </div>
-                      {verifyResult.payload && (
+                      {verifyResult.checks?.invisible_watermark?.payload && (
                          <div className="border-t border-neutral-800/50 pt-2 mt-2">
                             <span className="text-neutral-600 text-[9px] font-bold block mb-1 uppercase tracking-widest">Extracted Payload</span>
                             <div className="font-mono text-[9px] text-neutral-400 bg-neutral-900 border border-neutral-800 p-2 rounded break-all">
-                               {verifyResult.payload}
+                               {verifyResult.checks.invisible_watermark.payload}
+                            </div>
+                         </div>
+                      )}
+                      {verifyResult.verdict && (
+                         <div className="border-t border-neutral-800/50 pt-2 mt-2">
+                            <span className="text-neutral-600 text-[9px] font-bold block mb-1 uppercase tracking-widest">Verdict</span>
+                            <div className={`font-mono text-[9px] p-2 rounded border ${verifyResult.is_authentic ? 'text-emerald-400 bg-emerald-500/5 border-emerald-500/20' : 'text-rose-400 bg-rose-500/5 border-rose-500/20'}`}>
+                               {verifyResult.verdict}
                             </div>
                          </div>
                       )}

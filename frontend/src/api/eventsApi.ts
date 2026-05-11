@@ -21,4 +21,16 @@ export const eventsApi = {
     const { data } = await axiosClient.delete(`/api/events/${id}`);
     return data;
   },
+  getEventsByStatus: async (status: string) => {
+    const { data } = await axiosClient.get('/api/events/', { params: { status } });
+    return data;
+  },
+  getEventsByCamera: async (cameraId: number | string) => {
+    const { data } = await axiosClient.get('/api/events/', { params: { camera_id: cameraId } });
+    return data;
+  },
+  getEventsByDate: async (date: string) => {
+    const { data } = await axiosClient.get('/api/events/', { params: { date } });
+    return data;
+  },
 };

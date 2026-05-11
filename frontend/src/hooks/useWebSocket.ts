@@ -19,8 +19,12 @@ export const useWebSocket = () => {
     try {
       const wsUrl = `${wsBaseUrl}/api/monitoring/ws${accessToken ? `?token=${accessToken}` : ''}`;
       const ws = new WebSocket(wsUrl);
-      
+
+      // assign ref early so cleanup/closures reference the instance
+      wsRef.current = ws;
+
       ws.onopen = () => {
+        console.info('WebSocket opened', wsUrl);
         setIsConnected(true);
       };
 
@@ -33,18 +37,19 @@ export const useWebSocket = () => {
         }
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event: CloseEvent) => {
+        console.warn('WebSocket closed', { code: event?.code, reason: event?.reason });
         setIsConnected(false);
-        // Reconnect after 3 seconds
+        // Reconnect after 3 seconds (unless unmounted - cleanup nulls handlers)
         setTimeout(connect, 3000);
       };
 
       ws.onerror = (error) => {
         console.error("WebSocket error:", error);
-        ws.close();
+        // close will trigger onclose where we log code/reason
+        try { ws.close(); } catch (e) { console.error('Failed to close WS after error', e); }
       };
-      
-      wsRef.current = ws;
+
     } catch (e) {
       console.error("WebSocket connection failed", e);
     }
@@ -55,7 +60,10 @@ export const useWebSocket = () => {
     return () => {
       if (wsRef.current) {
         wsRef.current.onclose = null; // Prevent reconnect loop on unmount
-        wsRef.current.close();
+        wsRef.current.onerror = null; // Prevent StrictMode error logging
+        if (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING) {
+          wsRef.current.close();
+        }
         wsRef.current = null;
       }
     };

@@ -3,10 +3,14 @@ import { Users, Plus, Trash2, Edit, Search } from 'lucide-react';
 import { personsApi } from '../api/personsApi';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { StatusBadge } from '../components/StatusBadge';
+import { PersonModal } from '../components/PersonModal';
 
 export default function Persons() {
   const [persons, setPersons] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingPerson, setEditingPerson] = useState<any>(null);
+  const [error, setError] = useState('');
 
   const fetchPersons = async () => {
     try {
@@ -35,10 +39,57 @@ export default function Persons() {
     }
   };
 
+  const handleOpenAddModal = () => {
+    setEditingPerson(null);
+    setError('');
+    setModalOpen(true);
+  };
+
+  const handleOpenEditModal = (person: any) => {
+    setEditingPerson(person);
+    setError('');
+    setModalOpen(true);
+  };
+
+  const handleCreatePerson = async (personData: any) => {
+    try {
+      await personsApi.createPerson(personData);
+      setError('');
+      await fetchPersons();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create person');
+      throw err;
+    }
+  };
+
+  const handleUpdatePerson = async (personData: any) => {
+    try {
+      await personsApi.updatePerson(editingPerson.id, personData);
+      setError('');
+      await fetchPersons();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update person');
+      throw err;
+    }
+  };
+
+  const handleModalSubmit = async (personData: any) => {
+    if (editingPerson) {
+      await handleUpdatePerson(personData);
+    } else {
+      await handleCreatePerson(personData);
+    }
+  };
+
   if (loading && persons.length === 0) return <LoadingSpinner />;
 
   return (
     <div className="space-y-6">
+      {error && (
+        <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded text-rose-500 text-xs uppercase font-bold tracking-widest">
+          {error}
+        </div>
+      )}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-neutral-800 pb-4">
         <div>
           <h1 className="text-[12px] font-bold text-white uppercase tracking-widest flex items-center gap-2">
@@ -46,7 +97,7 @@ export default function Persons() {
           </h1>
           <p className="text-[10px] text-neutral-500 uppercase tracking-widest mt-1">Manage expected individuals and their access statuses.</p>
         </div>
-        <button className="flex items-center space-x-2 bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-widest transition-colors">
+        <button onClick={handleOpenAddModal} className="flex items-center space-x-2 bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-widest transition-colors">
            <Plus className="w-3 h-3" />
            <span>Add Entity</span>
         </button>
@@ -99,7 +150,7 @@ export default function Persons() {
                        </td>
                        <td className="px-4 py-3 whitespace-nowrap text-right">
                           <div className="flex justify-end gap-3">
-                             <button className="text-neutral-500 hover:text-white transition-colors" title="Modify Record">
+                             <button onClick={() => handleOpenEditModal(person)} className="text-neutral-500 hover:text-white transition-colors" title="Modify Record">
                                 <Edit className="w-4 h-4" />
                              </button>
                              <button onClick={() => handleDelete(person.id)} className="text-rose-500 hover:text-rose-400 transition-colors" title="Purge Record">
@@ -113,6 +164,14 @@ export default function Persons() {
             </table>
          </div>
       </div>
+
+      <PersonModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onSubmit={handleModalSubmit}
+        initialData={editingPerson}
+        title={editingPerson ? `Edit: ${editingPerson.full_name}` : 'Add Person'}
+      />
     </div>
   );
 }

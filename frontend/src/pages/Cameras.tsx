@@ -3,10 +3,14 @@ import { Video, Plus, Trash2, Edit, Play, Square } from 'lucide-react';
 import { camerasApi } from '../api/camerasApi';
 import { monitoringApi } from '../api/monitoringApi';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import { CameraModal } from '../components/CameraModal';
 
 export default function Cameras() {
   const [cameras, setCameras] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingCamera, setEditingCamera] = useState<any>(null);
+  const [error, setError] = useState('');
 
   const fetchCameras = async () => {
     try {
@@ -35,35 +39,80 @@ export default function Cameras() {
     }
   };
 
-  const toggleStatus = async (id: number, isActive: boolean) => {
-     try {
-        if (isActive) {
-           await monitoringApi.stopCamera(id);
-        } else {
-           await monitoringApi.startCamera(id);
-        }
-        await fetchCameras();
-     } catch(e) {
-        console.error(e);
-     }
-  };
+   const toggleStatus = async (id: number, isActive: boolean) => {
+      try {
+         if (isActive) {
+            await monitoringApi.stopCamera(id);
+         } else {
+            await monitoringApi.startCamera(id);
+         }
+         await fetchCameras();
+      } catch(e) {
+         console.error(e);
+      }
+   };
 
-  if (loading && cameras.length === 0) return <LoadingSpinner />;
+   const handleOpenAddModal = () => {
+      setEditingCamera(null);
+      setModalOpen(true);
+   };
 
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-neutral-800 pb-4">
-        <div>
-          <h1 className="text-[12px] font-bold text-white uppercase tracking-widest flex items-center gap-2">
-            <Video className="w-4 h-4 text-indigo-500" /> Camera Management
-          </h1>
-          <p className="text-[10px] text-neutral-500 uppercase tracking-widest mt-1">Configure and monitor surveillance endpoints.</p>
-        </div>
-        <button className="flex items-center space-x-2 bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-widest transition-colors">
-           <Plus className="w-3 h-3" />
-           <span>Add Node</span>
-        </button>
-      </div>
+   const handleOpenEditModal = (camera: any) => {
+      setEditingCamera(camera);
+      setModalOpen(true);
+   };
+
+   const handleCreateCamera = async (cameraData: any) => {
+      try {
+         await camerasApi.createCamera(cameraData);
+         setError('');
+         await fetchCameras();
+      } catch (err) {
+         setError(err instanceof Error ? err.message : 'Failed to create camera');
+         throw err;
+      }
+   };
+
+   const handleUpdateCamera = async (cameraData: any) => {
+      try {
+         await camerasApi.updateCamera(editingCamera.id, cameraData);
+         setError('');
+         await fetchCameras();
+      } catch (err) {
+         setError(err instanceof Error ? err.message : 'Failed to update camera');
+         throw err;
+      }
+   };
+
+   const handleModalSubmit = async (cameraData: any) => {
+      if (editingCamera) {
+         await handleUpdateCamera(cameraData);
+      } else {
+         await handleCreateCamera(cameraData);
+      }
+   };
+
+   if (loading && cameras.length === 0) return <LoadingSpinner />;
+
+   return (
+     <div className="space-y-6">
+       {error && (
+         <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded text-rose-500 text-xs uppercase font-bold tracking-widest">
+           {error}
+         </div>
+       )}
+       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-neutral-800 pb-4">
+         <div>
+           <h1 className="text-[12px] font-bold text-white uppercase tracking-widest flex items-center gap-2">
+             <Video className="w-4 h-4 text-indigo-500" /> Camera Management
+           </h1>
+           <p className="text-[10px] text-neutral-500 uppercase tracking-widest mt-1">Configure and monitor surveillance endpoints.</p>
+         </div>
+         <button onClick={handleOpenAddModal} className="flex items-center space-x-2 bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-widest transition-colors">
+            <Plus className="w-3 h-3" />
+            <span>Add Node</span>
+         </button>
+       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
          {cameras.length === 0 ? (
@@ -100,33 +149,41 @@ export default function Cameras() {
                   </div>
                </div>
                
-               <div className="bg-black border-t border-neutral-800 p-2.5 flex justify-between items-center">
-                  <div className="flex gap-2">
-                     <button className="p-1 text-neutral-500 hover:text-white transition-colors" title="Modify Configuration">
-                        <Edit className="w-3.5 h-3.5" />
-                     </button>
-                     <button onClick={() => handleDelete(camera.id)} className="p-1 text-rose-500 hover:text-rose-400 transition-colors" title="Decommission Node">
-                        <Trash2 className="w-3.5 h-3.5" />
-                     </button>
-                  </div>
-                  <button 
-                     onClick={() => toggleStatus(camera.id, camera.is_active)}
-                     className={`flex items-center gap-1.5 px-2 py-1 rounded text-[9px] uppercase font-bold tracking-widest transition-colors ${
-                        camera.is_active 
-                        ? 'bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 border border-rose-500/20' 
-                        : 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 border border-emerald-500/20'
-                     }`}
-                  >
-                     {camera.is_active ? (
-                        <><Square className="w-3 h-3" /> Terminate</>
-                     ) : (
-                        <><Play className="w-3 h-3" /> Initialize</>
-                     )}
-                  </button>
-               </div>
+                <div className="bg-black border-t border-neutral-800 p-2.5 flex justify-between items-center">
+                   <div className="flex gap-2">
+                      <button onClick={() => handleOpenEditModal(camera)} className="p-1 text-neutral-500 hover:text-white transition-colors" title="Modify Configuration">
+                         <Edit className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => handleDelete(camera.id)} className="p-1 text-rose-500 hover:text-rose-400 transition-colors" title="Decommission Node">
+                         <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                   </div>
+                   <button
+                      onClick={() => toggleStatus(camera.id, camera.is_active)}
+                      className={`flex items-center gap-1.5 px-2 py-1 rounded text-[9px] uppercase font-bold tracking-widest transition-colors ${
+                         camera.is_active 
+                         ? 'bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 border border-rose-500/20' 
+                         : 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 border border-emerald-500/20'
+                      }`}
+                   >
+                      {camera.is_active ? (
+                         <><Square className="w-3 h-3" /> Terminate</>
+                      ) : (
+                         <><Play className="w-3 h-3" /> Initialize</>
+                      )}
+                   </button>
+                </div>
             </div>
          ))}
-      </div>
-    </div>
-  );
-}
+       </div>
+
+      <CameraModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onSubmit={handleModalSubmit}
+        initialData={editingCamera}
+        title={editingCamera ? `Edit: ${editingCamera.name}` : 'Add Camera'}
+      />
+     </div>
+   );
+ }

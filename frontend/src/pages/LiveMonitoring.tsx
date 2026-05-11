@@ -2,14 +2,18 @@ import React, { useEffect, useState } from 'react';
 import { Play, Square, Activity, Video } from 'lucide-react';
 import { monitoringApi } from '../api/monitoringApi';
 import { useWebSocket } from '../hooks/useWebSocket';
+import { useAuth } from '../context/AuthContext';
 import { StatusBadge } from '../components/StatusBadge';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { formatDate } from '../utils/formatDate';
+import { API_BASE_URL } from '../utils/constants';
 
 export default function LiveMonitoring() {
   const [cameras, setCameras] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const { events, isConnected } = useWebSocket();
+  const { accessToken } = useAuth();
 
   const fetchCameras = async () => {
     try {
@@ -29,12 +33,15 @@ export default function LiveMonitoring() {
   }, []);
 
   const toggleCamera = async (id: number, isActive: boolean) => {
+    setError(null);
     try {
       if (isActive) await monitoringApi.stopCamera(id);
       else await monitoringApi.startCamera(id);
       await fetchCameras();
-    } catch (error) {
-      console.error('Failed to toggle camera', error);
+    } catch (err: any) {
+      const message = err?.response?.data?.detail || err?.message || 'Failed to toggle camera';
+      setError(`Camera ${id}: ${message}`);
+      console.error('Failed to toggle camera', err);
     }
   };
 
@@ -50,41 +57,61 @@ export default function LiveMonitoring() {
         <div className="text-[10px] text-neutral-500 font-mono uppercase tracking-widest font-bold">Nodes: {cameras.length}</div>
       </div>
 
+      {error && (
+        <div className="bg-rose-500/10 border border-rose-500/20 p-4 rounded-lg text-rose-500 text-[10px] uppercase tracking-widest font-bold flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="text-rose-500 hover:text-rose-400">
+            ×
+          </button>
+        </div>
+      )}
+
       <div className="grid grid-cols-12 gap-6 h-[600px]">
         <div className="col-span-12 lg:col-span-8 bg-black border border-neutral-800 rounded-lg relative overflow-hidden flex flex-col">
           <div className="absolute inset-0 pointer-events-none opacity-20 border-[20px] border-black z-10">
             <div className="w-full h-[1px] bg-indigo-500 absolute top-1/2 left-0 shadow-[0_0_10px_#6366f1]"></div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 flex-1 relative z-0">
-             {cameras.length === 0 ? (
-               <div className="col-span-full flex items-center justify-center text-neutral-600 text-[10px] font-bold uppercase tracking-widest bg-neutral-900">NO CAMERAS CONFIGURED</div>
-             ) : cameras.map((cam) => (
-               <div key={cam.id} className="relative bg-neutral-900 flex items-center justify-center border border-neutral-800 group">
-                 <div className="absolute top-2 left-2 px-1.5 py-0.5 bg-black/60 text-[9px] font-mono border border-white/10 z-20 text-neutral-300 backdrop-blur-sm truncate max-w-[120px]">
-                    {cam.name}
-                 </div>
-                 <div className="absolute top-2 right-2 flex items-center gap-2 z-20">
-                   <button
-                       onClick={() => toggleCamera(cam.id, cam.is_active)}
-                       className={`px-1.5 py-0.5 text-[9px] font-mono border backdrop-blur-sm transition-colors ${cam.is_active ? 'bg-rose-500/10 border-rose-500/20 text-rose-500 hover:bg-rose-500/30' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500 hover:bg-emerald-500/30'}`}
-                     >
-                        {cam.is_active ? 'HALT' : 'ENGAGE'}
-                     </button>
-                   {cam.is_active && (
-                     <>
-                       <div className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-pulse"></div>
-                       <span className="text-[9px] font-mono text-rose-500">LIVE</span>
-                     </>
-                   )}
-                 </div>
-                 {cam.is_active ? (
-                    <div className="text-neutral-700 font-mono text-[10px] uppercase">Buffer loading...</div>
-                 ) : (
-                    <div className="text-neutral-700 font-mono text-[10px] uppercase">Feed Offline</div>
-                 )}
-               </div>
-             ))}
-          </div>
+           <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 flex-1 relative z-0">
+              {cameras.length === 0 ? (
+                <div className="col-span-full flex items-center justify-center text-neutral-600 text-[10px] font-bold uppercase tracking-widest bg-neutral-900">NO CAMERAS CONFIGURED</div>
+              ) : cameras.map((cam) => {
+                const isStreaming = cam.stream_status?.is_running === true;
+                return (
+                <div key={cam.id} className="relative bg-neutral-900 flex items-center justify-center border border-neutral-800 group overflow-hidden">
+                  {isStreaming && (
+                    <img
+                      src={`${API_BASE_URL}/api/monitoring/stream/${cam.id}?token=${accessToken}`}
+                      alt={cam.name}
+                      className="absolute inset-0 w-full h-full object-cover"
+                      onError={() => console.error(`Failed to stream camera ${cam.id}`)}
+                    />
+                  )}
+                  <div className="absolute top-2 left-2 px-1.5 py-0.5 bg-black/60 text-[9px] font-mono border border-white/10 z-20 text-neutral-300 backdrop-blur-sm truncate max-w-[120px]">
+                     {cam.name}
+                  </div>
+                  <div className="absolute top-2 right-2 flex items-center gap-2 z-20">
+                    <button
+                        onClick={() => toggleCamera(cam.id, isStreaming)}
+                        className={`px-1.5 py-0.5 text-[9px] font-mono border backdrop-blur-sm transition-colors ${isStreaming ? 'bg-rose-500/10 border-rose-500/20 text-rose-500 hover:bg-rose-500/30' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500 hover:bg-emerald-500/30'}`}
+                      >
+                         {isStreaming ? 'HALT' : 'ENGAGE'}
+                      </button>
+                    {isStreaming && (
+                      <>
+                        <div className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-pulse"></div>
+                        <span className="text-[9px] font-mono text-rose-500">LIVE</span>
+                      </>
+                    )}
+                  </div>
+                  {!isStreaming && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
+                      <div className="text-neutral-400 font-mono text-[10px] uppercase">Feed Offline</div>
+                    </div>
+                  )}
+                </div>
+                );
+              })}
+           </div>
         </div>
 
         <div className="col-span-12 lg:col-span-4 bg-neutral-900 border border-neutral-800 rounded-lg overflow-hidden flex flex-col h-full">

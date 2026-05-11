@@ -51,12 +51,27 @@ class StreamProcessor:
             if self.source.isdigit():
                 cap = cv2.VideoCapture(int(self.source))
             else:
-                # URL or file path
-                cap = cv2.VideoCapture(self.source)
+                # For network URLs (RTSP, HTTP), use FFMPEG backend
+                # and set a connection timeout to avoid hanging
+                cap = cv2.VideoCapture(self.source, cv2.CAP_FFMPEG)
+                # Set timeout for opening (5 seconds)
+                cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 5000)
+                # Set read timeout (5 seconds)
+                cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 5000)
 
             if not cap.isOpened():
                 logger.error(f"Failed to open video source: {self.source}")
                 return None
+
+            # Verify we can actually read a frame
+            ret, test_frame = cap.read()
+            if not ret or test_frame is None:
+                logger.error(f"Video source opened but cannot read frames: {self.source}")
+                cap.release()
+                return None
+
+            # Store first frame so MJPEG can serve immediately
+            self.last_frame = test_frame.copy()
 
             # Set basic properties
             cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Minimize buffer
@@ -238,20 +253,33 @@ class StreamProcessor:
         if cap is None:
             self.is_running = False
             logger.error(f"Cannot start stream for camera {self.camera_id}")
+            _cleanup_stream(self.camera_id)
             return
 
         logger.info(f"Starting stream processor for camera {self.camera_id}")
         frame_skip = 0
+        consecutive_failures = 0
 
         try:
             while self.is_running:
                 ret, frame = cap.read()
 
                 if not ret:
-                    logger.warning(f"Failed to read frame from camera {self.camera_id}")
-                    break
+                    consecutive_failures += 1
+                    logger.warning(f"Failed to read frame from camera {self.camera_id} (attempt {consecutive_failures})")
+                    if consecutive_failures > 30:
+                        logger.error(f"Too many consecutive read failures for camera {self.camera_id}, stopping")
+                        break
+                    import time
+                    time.sleep(0.1)
+                    continue
 
-                # Skip frames to maintain ~15 FPS
+                consecutive_failures = 0
+
+                # Always store latest frame for MJPEG streaming
+                self.last_frame = frame.copy()
+
+                # Skip frames to maintain ~15 FPS for detection
                 frame_skip += 1
                 if frame_skip < 2:  # Process every 2nd frame
                     continue
@@ -277,6 +305,7 @@ class StreamProcessor:
         finally:
             cap.release()
             self.is_running = False
+            _cleanup_stream(self.camera_id)
             logger.info(f"Stream processor stopped for camera {self.camera_id}")
 
     def stop(self):
@@ -295,11 +324,25 @@ class StreamProcessor:
         }
 
 
+def _cleanup_stream(camera_id: int) -> None:
+    """Remove a dead stream from the global state so it can be re-started."""
+    _stream_threads.pop(camera_id, None)
+    _stream_states.pop(camera_id, None)
+    _stream_locks.pop(camera_id, None)
+    logger.info(f"Cleaned up stream state for camera {camera_id}")
+
+
 def start_stream(camera_id: int, source: str) -> bool:
     """Start monitoring a camera stream."""
+    # Clean up stale entries from previously failed streams
     if camera_id in _stream_threads:
-        logger.warning(f"Stream already running for camera {camera_id}")
-        return False
+        thread = _stream_threads[camera_id]
+        if not thread.is_alive():
+            logger.info(f"Cleaning up dead stream thread for camera {camera_id}")
+            _cleanup_stream(camera_id)
+        else:
+            logger.warning(f"Stream already running for camera {camera_id}")
+            return False
 
     _stream_locks[camera_id] = threading.Lock()
 
@@ -313,13 +356,34 @@ def start_stream(camera_id: int, source: str) -> bool:
     thread = threading.Thread(
         target=processor.run,
         name=f"StreamProcessor-{camera_id}",
-        daemon=False
+        daemon=True
     )
     thread.start()
     _stream_threads[camera_id] = thread
 
-    logger.info(f"Stream started for camera {camera_id}")
-    return True
+    # Wait briefly to verify the stream actually opened
+    import time
+    for _ in range(50):  # Wait up to 5 seconds
+        time.sleep(0.1)
+        if processor.is_running and processor.last_frame is not None:
+            logger.info(f"Stream verified for camera {camera_id}")
+            return True
+        if not thread.is_alive():
+            # Thread died - stream failed to open
+            logger.error(f"Stream thread died for camera {camera_id} (source: {source})")
+            _cleanup_stream(camera_id)
+            return False
+
+    # Timeout - stream might still be connecting (slow network)
+    if processor.is_running:
+        logger.warning(f"Stream for camera {camera_id} is running but no frames yet")
+        return True
+
+    # Failed
+    logger.error(f"Stream failed to start within timeout for camera {camera_id}")
+    processor.stop()
+    _cleanup_stream(camera_id)
+    return False
 
 
 def stop_stream(camera_id: int) -> bool:
@@ -362,6 +426,25 @@ def get_all_streams_status() -> Dict[int, Dict]:
         if processor:
             result[camera_id] = processor.get_status()
     return result
+
+
+def get_latest_frame(camera_id: int) -> Optional[bytes]:
+    """Get the latest JPEG-encoded frame from a running stream.
+
+    Returns None if the camera is not streaming or has no frame yet.
+    """
+    if camera_id not in _stream_states:
+        return None
+    processor = _stream_states[camera_id].get("processor")
+    if processor is None or not processor.is_running or processor.last_frame is None:
+        return None
+    frame = processor.last_frame
+    # Resize for the MJPEG feed
+    frame = cv2.resize(frame, (640, 480))
+    ret, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+    if not ret:
+        return None
+    return jpeg.tobytes()
 
 
 def register_event_callback(camera_id: int, callback: Callable):
